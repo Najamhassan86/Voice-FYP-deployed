@@ -29,7 +29,8 @@ export const PSLtoText = () => {
     confidenceThreshold: 0.6,
     cooldownMs: 1500,
     autoRecognize: true,
-    allowedLabels: modelClasses
+    allowedLabels: modelClasses,
+    handsDetected: mediaPipe.handsDetected
   });
 
   useEffect(() => {
@@ -268,7 +269,7 @@ export const PSLtoText = () => {
                 {language === 'en' ? 'Current Sign' : 'موجودہ اشارہ'}
               </h3>
 
-              {recognition.currentPrediction ? (
+              {mediaPipe.isDetecting && recognition.currentPrediction && !recognition.error && !mediaPipe.error ? (
                 <>
                   <div className="text-center py-6">
                     <p className={`mb-2 text-4xl font-bold text-[#4f46e5] ${language === 'ur' ? 'ur-text' : ''}`}>

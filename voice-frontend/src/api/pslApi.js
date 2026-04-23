@@ -67,18 +67,21 @@ const requestWithAutoBase = async (method, path, data = null) => {
  * Recognize PSL sign from a sequence of landmark features
  *
  * @param {number[][]} sequence - Array of 60 frames, each with 188 features
+ * @param {number} handsDetected - Number of hands detected (0, 1, or 2)
  * @returns {Promise<{label: string, class_id: number, confidence: number, top_predictions: Array}>}
  * @throws {Error} If the request fails or response is invalid
  */
-export const recognizePSL = async (sequence) => {
+export const recognizePSL = async (sequence, handsDetected = 0) => {
   try {
     console.log('Sending PSL recognition request...', {
       sequenceLength: sequence.length,
-      featureLength: sequence[0]?.length
+      featureLength: sequence[0]?.length,
+      handsDetected
     });
 
     const response = await requestWithAutoBase('post', '/api/psl/recognize', {
-      sequence
+      sequence,
+      hands_detected: handsDetected
     });
 
     console.log('PSL recognition response:', response);
@@ -87,17 +90,30 @@ export const recognizePSL = async (sequence) => {
   } catch (error) {
     console.error('PSL recognition error:', error);
 
-    if (error.response) {
+    let errorMessage = 'Recognition failed';
+
+    // Check for "no hands detected" error specifically
+    if (error.message && error.message.includes('No hands detected')) {
+      errorMessage = 'NO HANDS DETECTED';
+    } else if (error.response) {
       // Server responded with error status
-      const errorMessage = error.response.data?.detail || 'Recognition failed';
-      throw new Error(`Server error: ${errorMessage}`);
+      const detail = error.response.data?.detail || 'Recognition failed';
+      
+      // Check if detail contains "no hands detected"
+      if (detail.includes('No hands detected')) {
+        errorMessage = 'NO HANDS DETECTED';
+      } else {
+        errorMessage = detail;
+      }
     } else if (error.request) {
       // Request was made but no response received
-      throw new Error('No response from server. Is the backend running?');
+      errorMessage = 'Backend not responding. Is the server running?';
     } else {
       // Something else happened
-      throw new Error(`Request error: ${error.message}`);
+      errorMessage = error.message || 'Unknown error';
     }
+
+    throw new Error(errorMessage);
   }
 };
 

@@ -33,6 +33,12 @@ class PSLRequest(BaseModel):
         min_items=60,
         max_items=60
     )
+    hands_detected: int = Field(
+        default=0,
+        description="Number of hands detected in the frames (0, 1, or 2)",
+        ge=0,
+        le=2
+    )
 
     @validator('sequence')
     def validate_sequence_shape(cls, v):
@@ -51,7 +57,8 @@ class PSLRequest(BaseModel):
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
-                "sequence": [[0.0] * 188 for _ in range(60)]  # Example placeholder
+                "sequence": [[0.0] * 188 for _ in range(60)],  # Example placeholder
+                "hands_detected": 1
             }
         }
     )
@@ -170,7 +177,7 @@ async def recognize_psl(request: PSLRequest) -> PSLResponse:
     Recognize PSL sign from a sequence of landmark features.
 
     Args:
-        request: PSLRequest containing a (60, 188) sequence
+        request: PSLRequest containing a (60, 188) sequence and hands_detected count
 
     Returns:
         PSLResponse with predicted label, confidence, and top predictions
@@ -186,7 +193,16 @@ async def recognize_psl(request: PSLRequest) -> PSLResponse:
                 detail="PSL recognition model is not available. Please check if the model file exists."
             )
         
-        logger.info(f"Received PSL recognition request with {len(request.sequence)} frames")
+        # CRITICAL FIX: Check if hands were actually detected
+        # This prevents false positives when no hands are in view
+        if request.hands_detected == 0:
+            logger.warning(f"Ignoring recognition request: No hands detected")
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No hands detected in the input. Please ensure at least one hand is visible in the camera."
+            )
+        
+        logger.info(f"Received PSL recognition request with {len(request.sequence)} frames and {request.hands_detected} hand(s)")
 
         # Run inference
         result = predict_psl(request.sequence)
