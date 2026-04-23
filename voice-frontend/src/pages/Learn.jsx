@@ -91,7 +91,12 @@ export const Learn = () => {
         setSelectedWord((prev) => (prev && classes.includes(prev) ? prev : classes[0]));
       }
       if (classes.length === 0) {
-        setModelInfoError(language === 'en' ? 'No classes returned by backend model info.' : 'بیک اینڈ سے کلاسز موصول نہیں ہوئیں۔');
+        setModelInfoError(
+          info?.error ||
+          (language === 'en'
+            ? 'No classes returned by backend model info.'
+            : 'بیک اینڈ سے کلاسز موصول نہیں ہوئیں۔')
+        );
       }
     } catch (err) {
       setModelClasses([]);

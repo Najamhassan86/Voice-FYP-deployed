@@ -10,6 +10,7 @@ export const AvatarPlayer = ({ text, language, isAnimating, onAnimationStart, on
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentAnimation, setCurrentAnimation] = useState(null);
   const [loadingAnimation, setLoadingAnimation] = useState(false);
+  const [avatarError, setAvatarError] = useState('');
 
   // Memoize words array to prevent infinite re-renders
   const words = useMemo(() => {
@@ -20,10 +21,17 @@ export const AvatarPlayer = ({ text, language, isAnimating, onAnimationStart, on
   useEffect(() => {
     const loadDefaultAnimation = async () => {
       try {
+        setAvatarError('');
         const result = await resolveAnimationForPhrase('ready', 'psl');
         setCurrentAnimation(result.animation);
       } catch (error) {
         console.error('Failed to load default animation:', error);
+        setCurrentAnimation({
+          id: 'ready',
+          name: 'Ready',
+          file_path: '/animations/ready.glb'
+        });
+        setAvatarError('Backend animation lookup failed. Using local default avatar.');
       }
     };
 
@@ -38,6 +46,7 @@ export const AvatarPlayer = ({ text, language, isAnimating, onAnimationStart, on
     if (text) {
       setCurrentAnimation(null);
     }
+    setAvatarError('');
   }, [text]);
 
   // Load animation for current word (only when word index or text changes)
@@ -60,12 +69,14 @@ export const AvatarPlayer = ({ text, language, isAnimating, onAnimationStart, on
   const loadAnimationForWord = async (word) => {
     setLoadingAnimation(true);
     try {
+      setAvatarError('');
       const result = await resolveAnimationForPhrase(word, language);
       setCurrentAnimation(result.animation);
       console.log(`Loaded animation for "${word}":`, result.animation);
     } catch (error) {
       console.error(`Failed to load animation for "${word}":`, error);
       setCurrentAnimation(null);
+      setAvatarError(error?.message || `Failed to load animation for "${word}"`);
     } finally {
       setLoadingAnimation(false);
     }
@@ -141,6 +152,12 @@ export const AvatarPlayer = ({ text, language, isAnimating, onAnimationStart, on
           </div>
         )}
       </div>
+
+      {avatarError && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          {avatarError}
+        </div>
+      )}
 
       {words.length > 0 && (
         <div className="text-center text-sm text-[#60708b]">

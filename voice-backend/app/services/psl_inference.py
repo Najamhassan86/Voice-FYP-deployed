@@ -23,6 +23,7 @@ _normalization_params = None
 _class_labels = None
 _model_loaded = False
 _custom_objects = None
+_model_load_error = None
 
 
 def _get_model_paths():
@@ -92,11 +93,13 @@ def load_model():
     Load the trained model, normalization parameters, and class labels.
     This function is called once on application startup.
     """
-    global _model, _normalization_params, _class_labels, _model_loaded, _custom_objects
+    global _model, _normalization_params, _class_labels, _model_loaded, _custom_objects, _model_load_error
 
     if _model_loaded:
         logger.info("Model already loaded, skipping...")
         return
+
+    _model_load_error = None
 
     try:
         # Import TensorFlow only when needed
@@ -163,6 +166,7 @@ def load_model():
         logger.info(f"Loaded {len(_class_labels)} class labels: {', '.join(_class_labels[:5])}...")
 
         _model_loaded = True
+        _model_load_error = None
         logger.info("PSL model initialization complete!")
 
     except FileNotFoundError as e:
@@ -170,10 +174,12 @@ def load_model():
         logger.warning("PSL recognition will be disabled. Text-to-PSL animations will still work.")
         logger.info("To enable PSL recognition, train a model using the transformer training pipeline.")
         _model_loaded = False
+        _model_load_error = str(e)
     except Exception as e:
         logger.error(f"Failed to load PSL model: {str(e)}")
         logger.warning("PSL recognition will be disabled. Text-to-PSL animations will still work.")
         _model_loaded = False
+        _model_load_error = str(e)
 
 
 def is_model_available() -> bool:
@@ -303,7 +309,7 @@ def get_model_info() -> Dict:
         Dictionary with model metadata
     """
     if not _model_loaded:
-        return {"loaded": False, "error": "Model not loaded"}
+        return {"loaded": False, "error": _model_load_error or "Model not loaded"}
 
     return {
         "loaded": True,
