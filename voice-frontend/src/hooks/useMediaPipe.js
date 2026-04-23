@@ -7,6 +7,61 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 
+const MEDIAPIPE_HANDS_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js';
+
+const loadScript = (src) => new Promise((resolve, reject) => {
+  const existingScript = document.querySelector(`script[src="${src}"]`);
+  if (existingScript) {
+    if (existingScript.dataset.loaded === 'true') {
+      resolve();
+      return;
+    }
+
+    existingScript.addEventListener('load', () => resolve(), { once: true });
+    existingScript.addEventListener('error', () => reject(new Error(`Failed to load script: ${src}`)), { once: true });
+    return;
+  }
+
+  const script = document.createElement('script');
+  script.src = src;
+  script.async = true;
+  script.onload = () => {
+    script.dataset.loaded = 'true';
+    resolve();
+  };
+  script.onerror = () => reject(new Error(`Failed to load script: ${src}`));
+  document.head.appendChild(script);
+});
+
+const resolveHandsConstructor = async () => {
+  const globalHands = globalThis?.Hands;
+  if (typeof globalHands === 'function') {
+    return globalHands;
+  }
+
+  try {
+    const handsModule = await import('@mediapipe/hands');
+    const HandsCtor =
+      handsModule?.Hands ||
+      handsModule?.default?.Hands ||
+      handsModule?.default;
+
+    if (typeof HandsCtor === 'function') {
+      return HandsCtor;
+    }
+  } catch (importError) {
+    console.warn('Module import for @mediapipe/hands failed, falling back to CDN script.', importError);
+  }
+
+  await loadScript(MEDIAPIPE_HANDS_SCRIPT_URL);
+
+  if (typeof globalThis?.Hands === 'function') {
+    return globalThis.Hands;
+  }
+
+  throw new Error('MediaPipe Hands constructor could not be loaded');
+};
+
 /**
  * Extract 188-dimensional feature vector from MediaPipe hand landmarks
  *
@@ -193,8 +248,7 @@ export const useMediaPipe = (videoRef, options = {}) => {
    */
   const initializeMediaPipe = useCallback(async () => {
     try {
-      // Dynamically import MediaPipe modules
-      const { Hands } = await import('@mediapipe/hands');
+      const Hands = await resolveHandsConstructor();
 
       console.log('Initializing MediaPipe Hands...');
 
@@ -243,11 +297,12 @@ export const useMediaPipe = (videoRef, options = {}) => {
       handsRef.current = hands;
 
       setIsInitialized(true);
+      setError(null);
       console.log('MediaPipe Hands initialized successfully');
 
     } catch (err) {
       console.error('Failed to initialize MediaPipe:', err);
-      setError(err.message);
+      setError(err.message || 'Failed to initialize MediaPipe Hands');
     }
   }, [videoRef, onFeatures, onResults, drawLandmarks]);
 
