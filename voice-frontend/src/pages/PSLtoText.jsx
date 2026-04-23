@@ -10,6 +10,8 @@ export const PSLtoText = () => {
   const videoRef = useRef(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [modelClasses, setModelClasses] = useState([]);
+  const [isLoadingModel, setIsLoadingModel] = useState(true);
+  const [modelInfoError, setModelInfoError] = useState('');
 
   // MediaPipe hand detection
   const mediaPipe = useMediaPipe(videoRef, {
@@ -32,12 +34,21 @@ export const PSLtoText = () => {
   useEffect(() => {
     const loadModelInfo = async () => {
       try {
+        setIsLoadingModel(true);
+        setModelInfoError('');
         const info = await getPSLModelInfo();
         if (info?.loaded && Array.isArray(info.classes)) {
           setModelClasses(info.classes);
+        } else {
+          setModelClasses([]);
+          setModelInfoError(info?.error || 'PSL model is not loaded on the backend.');
         }
       } catch (err) {
+        setModelClasses([]);
+        setModelInfoError(err?.message || 'Could not connect to PSL backend.');
         console.warn('Could not fetch model info:', err.message);
+      } finally {
+        setIsLoadingModel(false);
       }
     };
 
@@ -46,12 +57,15 @@ export const PSLtoText = () => {
 
   // Camera control
   const handleStartCamera = useCallback(async () => {
+    if (modelClasses.length === 0) {
+      return;
+    }
     try {
       await mediaPipe.startDetection();
     } catch (err) {
       console.error('Failed to start camera:', err);
     }
-  }, [mediaPipe]);
+  }, [mediaPipe, modelClasses.length]);
 
   const handleStopCamera = useCallback(() => {
     mediaPipe.stopDetection();
@@ -187,11 +201,13 @@ export const PSLtoText = () => {
               {!mediaPipe.isDetecting ? (
                 <button
                   onClick={handleStartCamera}
-                  disabled={mediaPipe.isInitialized && mediaPipe.isDetecting}
+                  disabled={isLoadingModel || modelClasses.length === 0 || (mediaPipe.isInitialized && mediaPipe.isDetecting)}
                   className="btn-primary flex-1 disabled:opacity-50"
                 >
                   <Video className="w-5 h-5" />
-                  {language === 'en' ? 'Start Camera' : 'کیمرہ شروع کریں'}
+                  {isLoadingModel
+                    ? (language === 'en' ? 'Loading Model...' : 'ماڈل لوڈ ہو رہا ہے...')
+                    : (language === 'en' ? 'Start Camera' : 'کیمرہ شروع کریں')}
                 </button>
               ) : (
                 <button
@@ -231,6 +247,14 @@ export const PSLtoText = () => {
               <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
                 <p className="text-sm text-red-800 font-semibold">
                   ⚠️ Error: {mediaPipe.error || recognition.error}
+                </p>
+              </div>
+            )}
+
+            {modelInfoError && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <p className="text-sm font-semibold text-amber-800">
+                  {language === 'en' ? 'PSL backend issue:' : 'پی ایس ایل بیک اینڈ مسئلہ:'} {modelInfoError}
                 </p>
               </div>
             )}

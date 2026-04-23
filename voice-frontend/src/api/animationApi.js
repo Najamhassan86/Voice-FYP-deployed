@@ -3,6 +3,64 @@ import axios from 'axios';
 // Get base URL from environment variable or use default
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
+const LOCAL_ANIMATION_IDS = new Set([
+  'alert', 'book', 'careful', 'cheap', 'crazy', 'dangerous', 'decent', 'dumb',
+  'excited', 'extreme', 'fantastic', 'far', 'fearful', 'foreign', 'funny', 'good',
+  'healthy', 'heavy', 'important', 'intelligent', 'interesting', 'late', 'less',
+  'new', 'no', 'noisy', 'peaceful', 'quick', 'ready', 'secure', 'smart', 'yes'
+]);
+
+const URDU_FALLBACK_MAP = {
+  'خوش': 'excited',
+  'اچھا': 'good',
+  'ذہین': 'smart',
+  'ہاں': 'yes',
+  'کتاب': 'book',
+  'تیار': 'ready',
+  'تیز': 'quick',
+  'اہم': 'important',
+  'بہترین': 'fantastic',
+  'تندرست': 'healthy',
+  'پرامن': 'peaceful',
+  'نیا': 'new'
+};
+
+const buildLocalAnimation = (id) => ({
+  id,
+  name: id.charAt(0).toUpperCase() + id.slice(1),
+  description: `Local fallback animation for ${id}`,
+  file_path: `/animations/${id}.glb`,
+  category: 'fallback',
+  tags: [id]
+});
+
+const resolveLocalAnimationFallback = (phrase, language = 'psl') => {
+  const normalizedPhrase = (phrase || '').trim().toLowerCase();
+  if (!normalizedPhrase) return null;
+
+  if (language === 'ur') {
+    const translated = URDU_FALLBACK_MAP[phrase.trim()];
+    if (translated && LOCAL_ANIMATION_IDS.has(translated)) {
+      return {
+        animation: buildLocalAnimation(translated),
+        matched_word: phrase.trim(),
+        confidence: 0.5
+      };
+    }
+  }
+
+  const words = normalizedPhrase.split(/\s+/).filter(Boolean);
+  const matched = words.find((word) => LOCAL_ANIMATION_IDS.has(word));
+
+  if (!matched) return null;
+
+  return {
+    animation: buildLocalAnimation(matched),
+    matched_word: matched,
+    confidence: 0.5
+  };
+};
+
 // Create axios instance with base configuration
 const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -70,6 +128,11 @@ export const resolveAnimationForPhrase = async (phrase, language = 'psl') => {
     return response.data;
   } catch (error) {
     console.error(`Failed to resolve animation for phrase "${phrase}":`, error);
+    const fallback = resolveLocalAnimationFallback(phrase, language);
+    if (fallback) {
+      console.warn(`Using local animation fallback for phrase "${phrase}"`);
+      return fallback;
+    }
     throw error;
   }
 };
