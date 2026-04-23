@@ -3,6 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { usePSLRecognition } from '../hooks/usePSLRecognition';
 import { getPSLModelInfo, getActivePSLBaseURL } from '../api/pslApi';
+import { normalizePSLClasses } from '../constants/pslClasses';
 import { Video, VideoOff, RotateCcw, Hand } from 'lucide-react';
 
 const PROGRESS_STORAGE_KEY = 'psl_learn_progress_v1';
@@ -85,7 +86,7 @@ export const Learn = () => {
     try {
       const info = await getPSLModelInfo();
       setActiveApiBaseURL(getActivePSLBaseURL() || '');
-      const classes = Array.isArray(info?.classes) ? info.classes : [];
+      const classes = normalizePSLClasses(info);
       setModelClasses(classes);
       if (classes.length > 0) {
         setSelectedWord((prev) => (prev && classes.includes(prev) ? prev : classes[0]));

@@ -3,6 +3,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useMediaPipe } from '../hooks/useMediaPipe';
 import { usePSLRecognition } from '../hooks/usePSLRecognition';
 import { getPSLModelInfo } from '../api/pslApi';
+import { normalizePSLClasses } from '../constants/pslClasses';
 import { Volume2, Trash2, RotateCcw, Video, VideoOff, Hand } from 'lucide-react';
 
 export const PSLtoText = () => {
@@ -37,8 +38,9 @@ export const PSLtoText = () => {
         setIsLoadingModel(true);
         setModelInfoError('');
         const info = await getPSLModelInfo();
-        if (info?.loaded && Array.isArray(info.classes)) {
-          setModelClasses(info.classes);
+        const classes = normalizePSLClasses(info);
+        if (info?.loaded && classes.length > 0) {
+          setModelClasses(classes);
         } else {
           setModelClasses([]);
           setModelInfoError(info?.error || 'PSL model is not loaded on the backend.');
