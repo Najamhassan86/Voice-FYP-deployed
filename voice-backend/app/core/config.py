@@ -1,3 +1,4 @@
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from typing import List
 
@@ -25,6 +26,20 @@ class Settings(BaseSettings):
 
     # Animation Settings
     ANIMATIONS_CONFIG_PATH: str = "app/animations_config.json"
+    MODEL_DIR: str = ""
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, value):
+        """Allow comma-separated CORS origins in environment variables."""
+        if isinstance(value, str):
+            value = value.strip()
+            if not value:
+                return []
+            if value.startswith("["):
+                return value
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
     class Config:
         env_file = ".env"

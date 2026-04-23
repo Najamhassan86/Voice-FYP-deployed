@@ -28,6 +28,19 @@ _custom_objects = None
 def _get_model_paths():
     """Resolve model-related paths by scanning supported project folders."""
     base_dir = Path(__file__).parent.parent.parent.parent
+    model_dir_override = os.getenv("MODEL_DIR", "").strip()
+
+    if model_dir_override:
+        override_dir = Path(model_dir_override)
+        if not override_dir.is_absolute():
+            override_dir = base_dir / override_dir
+
+        return {
+            "model": override_dir / "best_model.h5",
+            "normalization": override_dir / "normalization_params.json",
+            "metadata": base_dir / "transformer" / "data" / "extracted_landmarks" / "metadata.json",
+            "training_module": base_dir / "transformer" / "models" / "training",
+        }
 
     # Candidate roots in priority order.
     # 1) transformer/ is the active training pipeline used by backend docs.

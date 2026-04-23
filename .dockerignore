@@ -1,0 +1,16 @@
+.git
+.gitignore
+**/__pycache__/
+**/.pytest_cache/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/node_modules/
+ARCHIVE_UNUSED_2026-04-16/
+docs/
+lstm/
+MediaPipe/
+TransformerWala/
+voice-frontend/
+*.md
+status_out.txt

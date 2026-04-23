@@ -33,8 +33,10 @@ build/
 # *.pt
 # *.pth
 
-# Explicitly ignore all trained model binaries named best_model.h5
+# Explicitly ignore trained model binaries named best_model.h5 by default,
+# but keep the production PSL model tracked for deployment.
 **/best_model.h5
+!transformer/models/saved_models/tcn_transformer_20260417_011511/best_model.h5
 
 ##############################################
 # NODE / FRONTEND (voice-frontend + animation-player)

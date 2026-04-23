@@ -45,6 +45,7 @@ data/augmented/
 
 # Model files (can be large)
 models/saved_models/**/*.h5
+!models/saved_models/tcn_transformer_20260417_011511/best_model.h5
 models/saved_models/**/*.keras
 models/inference/**/*.tflite
 models/inference/**/model.json
