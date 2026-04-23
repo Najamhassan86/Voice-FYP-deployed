@@ -1,0 +1,207 @@
+{
+  "num_classes": 32,
+  "class_names": [
+    "alert",
+    "book",
+    "careful",
+    "cheap",
+    "crazy",
+    "dangerous",
+    "decent",
+    "dumb",
+    "excited",
+    "extreme",
+    "fantastic",
+    "far",
+    "fearful",
+    "foreign",
+    "funny",
+    "good",
+    "healthy",
+    "heavy",
+    "important",
+    "intelligent",
+    "interesting",
+    "late",
+    "less",
+    "new",
+    "no",
+    "noisy",
+    "peaceful",
+    "quick",
+    "ready",
+    "secure",
+    "smart",
+    "yes"
+  ],
+  "num_samples": 249,
+  "feature_dim": 188,
+  "sequence_length": 60,
+  "extraction_stats": {
+    "total_videos": 249,
+    "successful": 249,
+    "failed": 0,
+    "classes": {
+      "alert": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "book": {
+        "total": 1,
+        "successful": 1,
+        "failed": 0
+      },
+      "careful": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "cheap": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "crazy": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "dangerous": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "decent": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "dumb": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "excited": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "extreme": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "fantastic": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "far": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "fearful": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "foreign": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "funny": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "good": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "healthy": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "heavy": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "important": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "intelligent": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "interesting": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "late": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "less": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "new": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "no": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "noisy": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "peaceful": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "quick": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "ready": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "secure": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "smart": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      },
+      "yes": {
+        "total": 8,
+        "successful": 8,
+        "failed": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+# Sign Language Recognition Requirements
+
+# Core ML/DL
+tensorflow>=2.16.1,<2.22
+numpy>=1.26.0,<2.2
+scikit-learn>=1.4.0,<1.8
+
+# Computer Vision
+opencv-python>=4.8.1,<5.0
+mediapipe>=0.10.14,<0.11
+
+# Visualization
+matplotlib>=3.8.2,<3.11
+
+# Progress bars
+tqdm>=4.66.1,<5.0

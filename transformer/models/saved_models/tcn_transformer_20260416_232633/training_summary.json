@@ -1,0 +1,17 @@
+{
+  "model_type": "tcn_transformer",
+  "num_classes": 7,
+  "sequence_length": 60,
+  "feature_dim": 188,
+  "training_time_seconds": 110.67952013015747,
+  "total_epochs": 52,
+  "final_metrics": {
+    "train_loss": 0.9021530151367188,
+    "train_accuracy": 0.9890909194946289,
+    "val_loss": 1.1031099557876587,
+    "val_accuracy": 0.9285714030265808,
+    "best_val_loss": 0.9060729742050171,
+    "best_val_accuracy": 1.0
+  },
+  "model_parameters": 197191
+}
