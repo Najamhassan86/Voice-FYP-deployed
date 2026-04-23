@@ -182,9 +182,11 @@ export const useMediaPipe = (videoRef, options = {}) => {
   const [fps, setFps] = useState(0);
 
   const handsRef = useRef(null);
-  const cameraRef = useRef(null);
   const canvasRef = useRef(null);
   const fpsCounterRef = useRef({ frames: 0, lastTime: Date.now() });
+  const streamRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const isProcessingFrameRef = useRef(false);
 
   /**
    * Initialize MediaPipe Hands
@@ -193,7 +195,6 @@ export const useMediaPipe = (videoRef, options = {}) => {
     try {
       // Dynamically import MediaPipe modules
       const { Hands } = await import('@mediapipe/hands');
-      const { Camera } = await import('@mediapipe/camera_utils');
 
       console.log('Initializing MediaPipe Hands...');
 
@@ -241,21 +242,6 @@ export const useMediaPipe = (videoRef, options = {}) => {
 
       handsRef.current = hands;
 
-      // Initialize camera
-      if (videoRef.current) {
-        const camera = new Camera(videoRef.current, {
-          onFrame: async () => {
-            if (handsRef.current && videoRef.current) {
-              await handsRef.current.send({ image: videoRef.current });
-            }
-          },
-          width: 640,
-          height: 480
-        });
-
-        cameraRef.current = camera;
-      }
-
       setIsInitialized(true);
       console.log('MediaPipe Hands initialized successfully');
 
@@ -273,15 +259,55 @@ export const useMediaPipe = (videoRef, options = {}) => {
       await initializeMediaPipe();
     }
 
-    if (cameraRef.current) {
-      try {
-        await cameraRef.current.start();
-        setIsDetecting(true);
-        console.log('Hand detection started');
-      } catch (err) {
-        console.error('Failed to start camera:', err);
-        setError(err.message);
-      }
+    if (!videoRef.current || !handsRef.current) {
+      setError('Camera or MediaPipe is not ready');
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          width: { ideal: 640 },
+          height: { ideal: 480 },
+          facingMode: 'user'
+        },
+        audio: false
+      });
+
+      streamRef.current = stream;
+      videoRef.current.srcObject = stream;
+      await videoRef.current.play();
+
+      const processFrame = async () => {
+        if (!videoRef.current || !handsRef.current || !streamRef.current) {
+          return;
+        }
+
+        if (
+          !isProcessingFrameRef.current &&
+          videoRef.current.readyState >= 2
+        ) {
+          try {
+            isProcessingFrameRef.current = true;
+            await handsRef.current.send({ image: videoRef.current });
+          } catch (frameError) {
+            console.error('MediaPipe frame processing failed:', frameError);
+            setError(frameError.message || 'Failed to process video frame');
+          } finally {
+            isProcessingFrameRef.current = false;
+          }
+        }
+
+        animationFrameRef.current = requestAnimationFrame(processFrame);
+      };
+
+      setError(null);
+      setIsDetecting(true);
+      animationFrameRef.current = requestAnimationFrame(processFrame);
+      console.log('Hand detection started');
+    } catch (err) {
+      console.error('Failed to start camera:', err);
+      setError(err.message || 'Failed to access camera');
     }
   }, [isInitialized, initializeMediaPipe]);
 
@@ -289,11 +315,23 @@ export const useMediaPipe = (videoRef, options = {}) => {
    * Stop hand detection
    */
   const stopDetection = useCallback(() => {
-    if (cameraRef.current) {
-      cameraRef.current.stop();
-      setIsDetecting(false);
-      console.log('Hand detection stopped');
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
+
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+
+    isProcessingFrameRef.current = false;
+    setIsDetecting(false);
+    console.log('Hand detection stopped');
   }, []);
 
   /**
