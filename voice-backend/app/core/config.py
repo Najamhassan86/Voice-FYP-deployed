@@ -1,6 +1,7 @@
+from typing import Annotated, List
+
 from pydantic import field_validator
-from pydantic_settings import BaseSettings
-from typing import List
+from pydantic_settings import BaseSettings, NoDecode
 
 
 class Settings(BaseSettings):
@@ -13,7 +14,7 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "Backend service for PSL sign language animations"
 
     # CORS Settings - Allow frontend to call this API
-    CORS_ORIGINS: List[str] = [
+    CORS_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:5173",  # Vite default dev server
         "http://localhost:3000",  # Alternative dev port
         "http://127.0.0.1:5173",
@@ -36,8 +37,9 @@ class Settings(BaseSettings):
             value = value.strip()
             if not value:
                 return []
-            if value.startswith("["):
-                return value
+            if value.startswith("[") and value.endswith("]"):
+                import json
+                return json.loads(value)
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
 
