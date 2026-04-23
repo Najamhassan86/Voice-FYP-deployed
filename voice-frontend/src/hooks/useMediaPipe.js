@@ -260,7 +260,11 @@ export const useMediaPipe = (videoRef, options = {}) => {
     }
 
     if (!videoRef.current || !handsRef.current) {
-      setError('Camera or MediaPipe is not ready');
+      const missingParts = [
+        !videoRef.current ? 'video element' : null,
+        !handsRef.current ? 'MediaPipe Hands' : null
+      ].filter(Boolean).join(' and ');
+      setError(`${missingParts} not ready`);
       return;
     }
 

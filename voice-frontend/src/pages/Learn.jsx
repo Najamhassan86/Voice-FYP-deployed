@@ -244,21 +244,25 @@ export const Learn = () => {
           <div className="space-y-6 lg:col-span-2">
             <div className="overflow-hidden rounded-2xl border border-[#c8d8f2] bg-[#0b1324] shadow-lg">
               <div className="relative w-full bg-black aspect-video flex items-center justify-center">
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  playsInline
+                  muted
+                  className={`absolute inset-0 w-full h-full object-cover transform -scale-x-100 ${
+                    mediaPipe.isDetecting ? 'opacity-100' : 'opacity-0'
+                  }`}
+                />
+
+                <canvas
+                  ref={mediaPipe.canvasRef}
+                  className={`absolute inset-0 w-full h-full transform -scale-x-100 ${
+                    mediaPipe.isDetecting ? 'opacity-100' : 'opacity-0'
+                  }`}
+                />
+
                 {mediaPipe.isDetecting ? (
                   <>
-                    <video
-                      ref={videoRef}
-                      autoPlay
-                      playsInline
-                      muted
-                      className="absolute inset-0 w-full h-full object-cover transform -scale-x-100"
-                    />
-
-                    <canvas
-                      ref={mediaPipe.canvasRef}
-                      className="absolute inset-0 w-full h-full transform -scale-x-100"
-                    />
-
                     <div className="absolute top-4 left-4 flex items-center gap-2 bg-black/55 px-3 py-2 rounded-lg text-white text-sm font-medium">
                       <Hand className={`w-4 h-4 ${mediaPipe.handsDetected > 0 ? 'text-green-400' : 'text-gray-300'}`} />
                       {mediaPipe.handsDetected} {language === 'en' ? 'hand(s)' : 'ہاتھ'}
