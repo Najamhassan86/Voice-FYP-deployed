@@ -5,6 +5,7 @@
  */
 
 import axios from 'axios';
+import { normalizeBaseURL } from './normalizeBaseUrl';
 
 const createClient = (baseURL) => axios.create({
   baseURL,
@@ -14,7 +15,7 @@ const createClient = (baseURL) => axios.create({
   timeout: 30000, // 30 second timeout for model inference
 });
 
-const ENV_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim();
+const ENV_BASE_URL = normalizeBaseURL(import.meta.env.VITE_API_BASE_URL || '');
 const BASE_URL_CANDIDATES = [
   ENV_BASE_URL,
   'http://127.0.0.1:8001',
