@@ -36,10 +36,14 @@ def _get_model_paths():
         if not override_dir.is_absolute():
             override_dir = base_dir / override_dir
 
+        metadata_override = override_dir / "metadata.json"
+        if not metadata_override.exists():
+            metadata_override = base_dir / "transformer" / "data" / "extracted_landmarks" / "metadata.json"
+
         return {
             "model": override_dir / "best_model.h5",
             "normalization": override_dir / "normalization_params.json",
-            "metadata": base_dir / "transformer" / "data" / "extracted_landmarks" / "metadata.json",
+            "metadata": metadata_override,
             "training_module": base_dir / "transformer" / "models" / "training",
         }
 
