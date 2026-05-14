@@ -8,6 +8,8 @@ Model expects input shape (60, 188) - 60 frames of 188-dimensional feature vecto
 import os
 import sys
 import json
+import shutil
+import tempfile
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Optional
@@ -204,6 +206,79 @@ def _resolve_target_class_index(target_label: str) -> int:
     raise ValueError(f"Unknown target_label '{target_label}'. Not in model vocabulary.")
 
 
+def _normalize_input_layer_batch_shape(config) -> bool:
+    """
+    Convert Keras 3 H5 InputLayer config keys for older tf.keras loaders.
+
+    Some saved .h5 files store InputLayer shape as `batch_shape`; tf.keras 2.x
+    expects `batch_input_shape`. This keeps deployment tolerant if Railway ever
+    resolves an older TensorFlow wheel or cached image.
+    """
+    changed = False
+
+    if isinstance(config, dict):
+        if config.get("class_name") == "InputLayer":
+            layer_config = config.get("config") or {}
+            if "batch_shape" in layer_config and "batch_input_shape" not in layer_config:
+                layer_config["batch_input_shape"] = layer_config.pop("batch_shape")
+                changed = True
+
+        for value in config.values():
+            changed = _normalize_input_layer_batch_shape(value) or changed
+
+    elif isinstance(config, list):
+        for item in config:
+            changed = _normalize_input_layer_batch_shape(item) or changed
+
+    return changed
+
+
+def _load_model_with_inputlayer_patch(tf, model_path: Path, custom_objects: Dict):
+    """Patch a temporary copy of an H5 model when InputLayer.batch_shape breaks loading."""
+    import h5py
+
+    temp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".h5", delete=False) as tmp:
+            temp_path = Path(tmp.name)
+
+        shutil.copy2(model_path, temp_path)
+
+        with h5py.File(temp_path, "r+") as h5_file:
+            raw_config = h5_file.attrs.get("model_config")
+            if raw_config is None:
+                raise RuntimeError("H5 model_config attribute is missing")
+            if isinstance(raw_config, bytes):
+                raw_config = raw_config.decode("utf-8")
+
+            model_config = json.loads(raw_config)
+            if not _normalize_input_layer_batch_shape(model_config):
+                raise RuntimeError("No InputLayer.batch_shape entry found to patch")
+
+            h5_file.attrs["model_config"] = json.dumps(model_config).encode("utf-8")
+
+        logger.info("Retrying Keras model load with patched InputLayer config")
+        return tf.keras.models.load_model(str(temp_path), custom_objects=custom_objects, compile=False)
+
+    finally:
+        if temp_path is not None:
+            try:
+                temp_path.unlink(missing_ok=True)
+            except Exception as cleanup_error:
+                logger.warning(f"Could not delete temporary patched model {temp_path}: {cleanup_error}")
+
+
+def _load_keras_model(tf, model_path: Path, custom_objects: Dict):
+    try:
+        return tf.keras.models.load_model(str(model_path), custom_objects=custom_objects, compile=False)
+    except Exception as exc:
+        message = str(exc)
+        if "InputLayer" in message and "batch_shape" in message:
+            logger.warning(f"Keras H5 InputLayer compatibility issue detected: {message}")
+            return _load_model_with_inputlayer_patch(tf, model_path, custom_objects)
+        raise
+
+
 def load_model():
     """
     Load the trained model, normalization parameters, and class labels.
@@ -250,7 +325,7 @@ def load_model():
 
         # Load the Keras model with custom objects
         logger.info(f"Loading model from: {paths['model']}")
-        _model = tf.keras.models.load_model(str(paths['model']), custom_objects=_custom_objects, compile=False)
+        _model = _load_keras_model(tf, paths['model'], _custom_objects)
         logger.info(f"Model loaded successfully. Input shape: {_model.input_shape}")
 
         # Load normalization parameters
