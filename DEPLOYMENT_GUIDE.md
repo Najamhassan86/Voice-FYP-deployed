@@ -23,7 +23,8 @@ The backend loads `normalization_params.json` from the same folder and metadata 
 
 Environment variables:
 
-- `CORS_ORIGINS=https://your-vercel-app.vercel.app,http://localhost:5173`
+- `CORS_ORIGINS=https://voice-fyp-deployed-lmkn3lnq0-i221332-1484s-projects.vercel.app,http://localhost:5173`
+- `CORS_ORIGIN_REGEX=https://.*\.vercel\.app`
 - `MODEL_DIR=transformer/models/saved_models/tcn_transformer_20260417_011511`
 
 ## Vercel
@@ -33,4 +34,4 @@ Environment variables:
 
 Environment variables:
 
-- `VITE_API_BASE_URL=https://your-railway-backend.up.railway.app`
+- `VITE_API_BASE_URL=https://voice-fyp-deployed-production.up.railway.app`

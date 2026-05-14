@@ -5,6 +5,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libgomp1 \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY voice-backend/requirements.txt ./voice-backend/requirements.txt
 RUN pip install --no-cache-dir -r voice-backend/requirements.txt
 

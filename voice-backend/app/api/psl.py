@@ -6,10 +6,10 @@ Provides endpoints for Pakistan Sign Language recognition using the trained mode
 
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, validator, ConfigDict
-from typing import List
+from typing import List, Optional
 import logging
 
-from app.services.psl_inference import predict_psl, get_model_info, is_model_available
+from app.services.psl_inference import predict_psl, get_model_info, is_model_available, score_practice_sequence
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +99,23 @@ class ModelInfoResponse(BaseModel):
     classes: List[str] = None
     normalization_features: int = None
     error: str = None
+    practice_score_method: Optional[str] = None
+    practice_prototype_source: Optional[str] = None
+
+
+class PracticeScoreRequest(PSLRequest):
+    """Practice scoring: same sequence constraints plus target word."""
+    target_label: str = Field(..., min_length=1, description="PSL word the user is practicing")
+
+
+class PracticeScoreResponse(BaseModel):
+    """Score for a single target sign (embedding cosine or softmax fallback)."""
+    score: float = Field(..., ge=0.0, le=100.0)
+    cosine_similarity: Optional[float] = Field(None, description="Cosine in [-1,1] when method is embedding")
+    target_label: str
+    target_class_id: int = Field(..., ge=0)
+    method: str = Field(..., description="embedding | softmax_fallback")
+    target_class_probability: float = Field(..., ge=0.0, le=1.0)
 
 
 # ==================== API Endpoints ====================
@@ -236,6 +253,44 @@ async def recognize_psl(request: PSLRequest) -> PSLResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Unexpected error: {str(e)}"
+        )
+
+
+@router.post(
+    "/practice-score",
+    response_model=PracticeScoreResponse,
+    summary="Score a performed sign against one target word",
+    description=(
+        "Returns a 0–100 score for how well the (60,188) sequence matches the chosen "
+        "vocabulary item, using embedding cosine vs stored prototypes when available, "
+        "otherwise softmax probability for that class only."
+    ),
+)
+async def practice_score(request: PracticeScoreRequest) -> PracticeScoreResponse:
+    if not is_model_available():
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="PSL recognition model is not available.",
+        )
+    try:
+        result = score_practice_sequence(
+            request.sequence,
+            request.target_label,
+            request.hands_detected,
+        )
+        return PracticeScoreResponse(**result)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e),
+        )
+    except Exception as e:
+        logger.error(f"practice-score error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Unexpected error: {str(e)}",
         )
 
 

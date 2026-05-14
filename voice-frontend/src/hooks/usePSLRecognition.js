@@ -17,6 +17,7 @@ import { recognizePSL, validateSequence } from '../api/pslApi';
  * @param {number} options.cooldownMs - Cooldown between API calls (default: 1000ms)
  * @param {boolean} options.autoRecognize - Automatically recognize when buffer is full (default: true)
  * @param {number} options.handsDetected - Current number of hands detected (default: 0)
+ * @param {() => number} options.getHandsDetected - Optional getter for hands count (overrides handsDetected when set)
  * @returns {Object} Recognition state and control functions
  */
 export const usePSLRecognition = (options = {}) => {
@@ -26,7 +27,8 @@ export const usePSLRecognition = (options = {}) => {
     cooldownMs = 1000,
     autoRecognize = true,
     allowedLabels = null,
-    handsDetected = 0
+    handsDetected = 0,
+    getHandsDetected = null
   } = options;
 
   const allowedLabelSet = useMemo(() => {
@@ -97,7 +99,7 @@ export const usePSLRecognition = (options = {}) => {
     setError(null);
 
     try {
-      console.log('Running PSL recognition...', { handsDetected });
+      console.log('Running PSL recognition...', { handsDetected: getHandsDetected ? getHandsDetected() : handsDetected });
 
       // Validate sequence before sending
       const validation = validateSequence(sequenceBuffer);
@@ -105,8 +107,10 @@ export const usePSLRecognition = (options = {}) => {
         throw new Error(validation.error);
       }
 
+      const handsForApi = typeof getHandsDetected === 'function' ? getHandsDetected() : handsDetected;
+
       // Call backend API with hands_detected count
-      const result = await recognizePSL(sequenceBuffer, handsDetected);
+      const result = await recognizePSL(sequenceBuffer, handsForApi);
 
       // Safety gate: only accept labels from the currently loaded backend model classes
       if (allowedLabelSet && !allowedLabelSet.has(result.label)) {
@@ -146,7 +150,7 @@ export const usePSLRecognition = (options = {}) => {
         recognitionCooldown.current = false;
       }, cooldownMs);
     }
-  }, [sequenceBuffer, sequenceLength, confidenceThreshold, cooldownMs, allowedLabelSet, handsDetected]);
+  }, [sequenceBuffer, sequenceLength, confidenceThreshold, cooldownMs, allowedLabelSet, handsDetected, getHandsDetected]);
 
   /**
    * Auto-recognize when buffer is full (if enabled)

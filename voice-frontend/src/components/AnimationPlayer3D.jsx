@@ -7,7 +7,7 @@ import * as THREE from 'three';
 /**
  * 3D Model component that loads and animates GLB files
  */
-function Model({ animationPath, isPlaying, animationSpeed, onAnimationComplete }) {
+function Model({ animationPath, isPlaying, animationSpeed, modelScale = 1.5, onAnimationComplete }) {
   const group = useRef();
   const mixerRef = useRef();
   const actionsRef = useRef([]);
@@ -110,7 +110,7 @@ function Model({ animationPath, isPlaying, animationSpeed, onAnimationComplete }
 
   return (
     <group ref={group}>
-      <primitive object={gltf.scene} scale={1.5} position={[0, -1.2, 0]} />
+      <primitive object={gltf.scene} scale={modelScale} position={[0, -1.2, 0]} />
     </group>
   );
 }
@@ -172,6 +172,7 @@ export const AnimationPlayer3D = ({
   animationPath,
   isPlaying = false,
   animationSpeed = 1.0,
+  modelScale = 1.5,
   onAnimationComplete,
   className = '',
 }) => {
@@ -233,6 +234,7 @@ export const AnimationPlayer3D = ({
               animationPath={animationPath}
               isPlaying={isPlaying}
               animationSpeed={animationSpeed}
+              modelScale={modelScale}
               onAnimationComplete={onAnimationComplete}
             />
 

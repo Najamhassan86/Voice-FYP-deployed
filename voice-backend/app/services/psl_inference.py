@@ -19,11 +19,16 @@ logger = logging.getLogger(__name__)
 
 # Lazy import TensorFlow (heavy dependency)
 _model = None
+_embedding_model = None
 _normalization_params = None
 _class_labels = None
 _model_loaded = False
 _custom_objects = None
 _model_load_error = None
+# Rows aligned with _class_labels: (num_classes, embedding_dim), L2-normalized
+_prototype_matrix: Optional[np.ndarray] = None
+_prototype_source: Optional[str] = None
+_practice_scoring_ready = False
 
 
 def _get_model_paths():
@@ -60,7 +65,7 @@ def _get_model_paths():
         metadata_file = root / "data" / "extracted_landmarks" / "metadata.json"
         training_module = root / "models" / "training"
 
-        if not saved_models.exists() or not training_module.exists() or not metadata_file.exists():
+        if not saved_models.exists() or not training_module.exists():
             continue
 
         # Pick the most recently modified directory that has both model + normalization files.
@@ -74,22 +79,129 @@ def _get_model_paths():
             model_file = model_dir / "best_model.h5"
             norm_file = model_dir / "normalization_params.json"
             if model_file.exists() and norm_file.exists():
+                # Prefer metadata produced with this exact model artifact.
+                resolved_metadata = model_dir / "metadata.json"
+                if not resolved_metadata.exists():
+                    resolved_metadata = metadata_file
+
                 logger.info(f"Using PSL model directory: {model_dir}")
                 return {
                     "model": model_file,
                     "normalization": norm_file,
-                    "metadata": metadata_file,
+                    "metadata": resolved_metadata,
                     "training_module": training_module,
                 }
 
     # Explicit fallback path to preserve previous behavior if no candidate matched.
     fallback_model_dir = base_dir / "transformer" / "models" / "saved_models" / "tcn_transformer_20260417_011511"
+    fallback_metadata = fallback_model_dir / "metadata.json"
+    if not fallback_metadata.exists():
+        fallback_metadata = base_dir / "transformer" / "data" / "extracted_landmarks" / "metadata.json"
+
     return {
         "model": fallback_model_dir / "best_model.h5",
         "normalization": fallback_model_dir / "normalization_params.json",
-        "metadata": base_dir / "transformer" / "data" / "extracted_landmarks" / "metadata.json",
+        "metadata": fallback_metadata,
         "training_module": base_dir / "transformer" / "models" / "training",
     }
+
+
+def _pre_softmax_dense_output_tensor(model):
+    """Tensor at the last Dense layer before the final softmax (skips trailing Dropout)."""
+    import tensorflow as tf
+
+    layers = model.layers
+    out_i = len(layers) - 1
+    out = layers[out_i]
+    out_cfg = out.get_config()
+    if out_cfg.get("activation") != "softmax":
+        raise ValueError(
+            f"Expected last layer softmax, got activation={out_cfg.get('activation')!r}, name={out.name!r}"
+        )
+    i = out_i - 1
+    while i >= 0 and isinstance(layers[i], tf.keras.layers.Dropout):
+        i -= 1
+    if i < 0 or not isinstance(layers[i], tf.keras.layers.Dense):
+        raise ValueError("Could not locate pre-softmax Dense layer for embeddings")
+    return layers[i].output, int(layers[i].units)
+
+
+def _init_practice_scoring(model_dir: Path) -> None:
+    """Build embedding submodel and load learning_prototypes.json when present."""
+    global _embedding_model, _prototype_matrix, _prototype_source, _practice_scoring_ready
+
+    _embedding_model = None
+    _prototype_matrix = None
+    _prototype_source = None
+    _practice_scoring_ready = False
+
+    import tensorflow as tf
+
+    try:
+        pen_out, emb_dim = _pre_softmax_dense_output_tensor(_model)
+        _embedding_model = tf.keras.Model(inputs=_model.input, outputs=pen_out, name="embedding_extractor")
+        logger.info(f"Practice embedding model ready (dim={emb_dim})")
+    except Exception as e:
+        logger.warning(f"Could not build embedding model for practice scoring: {e}")
+        _embedding_model = None
+
+    proto_path = model_dir / "learning_prototypes.json"
+    if _embedding_model is None:
+        logger.warning("Embedding model unavailable; practice scores will use softmax target probability only.")
+        return
+
+    emb_dim = int(_embedding_model.output_shape[-1])
+
+    if not proto_path.exists():
+        logger.warning(f"No learning_prototypes.json at {proto_path}; practice scores will use softmax fallback.")
+        return
+
+    try:
+        with open(proto_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        raw = data.get("prototypes") or {}
+        file_dim = int(data.get("embedding_dim", 0) or 0)
+        if file_dim and file_dim != emb_dim:
+            logger.warning(
+                f"learning_prototypes.json embedding_dim {file_dim} != model embedding {emb_dim}; skipping prototypes."
+            )
+            return
+
+        mat = np.zeros((len(_class_labels), emb_dim), dtype=np.float32)
+        for i, lab in enumerate(_class_labels):
+            vec = raw.get(lab) or raw.get(lab.lower()) or raw.get(lab.capitalize())
+            if vec is None:
+                logger.warning(f"No prototype vector for class '{lab}' in {proto_path}")
+                continue
+            row = np.asarray(vec, dtype=np.float32).reshape(-1)
+            if row.shape[0] != emb_dim:
+                logger.warning(f"Prototype for '{lab}' has length {row.shape[0]}, expected {emb_dim}; skipping file.")
+                return
+            n = float(np.linalg.norm(row))
+            if n > 1e-8:
+                row = row / n
+            mat[i] = row
+
+        _prototype_matrix = mat
+        _prototype_source = data.get("prototype_source", "unknown")
+        _practice_scoring_ready = True
+        logger.info(
+            f"Loaded learning prototypes from {proto_path} (source={_prototype_source}, classes={len(_class_labels)})"
+        )
+    except Exception as e:
+        logger.warning(f"Failed to load learning_prototypes.json: {e}")
+        _prototype_matrix = None
+        _practice_scoring_ready = False
+
+
+def _resolve_target_class_index(target_label: str) -> int:
+    if not _class_labels:
+        raise RuntimeError("Class labels not loaded")
+    t = (target_label or "").strip().lower()
+    for i, lab in enumerate(_class_labels):
+        if str(lab).lower() == t:
+            return i
+    raise ValueError(f"Unknown target_label '{target_label}'. Not in model vocabulary.")
 
 
 def load_model():
@@ -97,7 +209,8 @@ def load_model():
     Load the trained model, normalization parameters, and class labels.
     This function is called once on application startup.
     """
-    global _model, _normalization_params, _class_labels, _model_loaded, _custom_objects, _model_load_error
+    global _model, _embedding_model, _normalization_params, _class_labels, _model_loaded, _custom_objects, _model_load_error
+    global _prototype_matrix, _prototype_source, _practice_scoring_ready
 
     if _model_loaded:
         logger.info("Model already loaded, skipping...")
@@ -171,6 +284,7 @@ def load_model():
 
         _model_loaded = True
         _model_load_error = None
+        _init_practice_scoring(paths["model"].parent)
         logger.info("PSL model initialization complete!")
 
     except FileNotFoundError as e:
@@ -179,11 +293,17 @@ def load_model():
         logger.info("To enable PSL recognition, train a model using the transformer training pipeline.")
         _model_loaded = False
         _model_load_error = str(e)
+        _embedding_model = None
+        _prototype_matrix = None
+        _practice_scoring_ready = False
     except Exception as e:
         logger.error(f"Failed to load PSL model: {str(e)}")
         logger.warning("PSL recognition will be disabled. Text-to-PSL animations will still work.")
         _model_loaded = False
         _model_load_error = str(e)
+        _embedding_model = None
+        _prototype_matrix = None
+        _practice_scoring_ready = False
 
 
 def is_model_available() -> bool:
@@ -305,6 +425,70 @@ def predict_psl(sequence: List[List[float]]) -> Dict:
         raise
 
 
+def score_practice_sequence(
+    sequence: List[List[float]],
+    target_label: str,
+    hands_detected: int = 0,
+) -> Dict:
+    """
+    Score a performed sign against a single target class (embedding cosine vs prototype,
+    with softmax target probability as fallback when prototypes are unavailable).
+    """
+    if not _model_loaded:
+        raise RuntimeError("Model not loaded. Call load_model() first.")
+
+    if hands_detected <= 0:
+        raise ValueError(
+            "No hands detected in the input. Please ensure at least one hand is visible in the camera."
+        )
+
+    if not isinstance(sequence, (list, np.ndarray)):
+        raise ValueError("Sequence must be a list or numpy array")
+
+    sequence_array = np.array(sequence, dtype=np.float32)
+    if sequence_array.shape != (60, 188):
+        raise ValueError(
+            f"Invalid input shape. Expected (60, 188), got {sequence_array.shape}. "
+            f"Sequence must contain exactly 60 frames of 188 features each."
+        )
+    if np.isnan(sequence_array).any():
+        raise ValueError("Input sequence contains NaN values")
+    if np.isinf(sequence_array).any():
+        raise ValueError("Input sequence contains infinite values")
+
+    target_idx = _resolve_target_class_index(target_label)
+    canonical = _class_labels[target_idx]
+
+    normalized_sequence = normalize_sequence(sequence_array)
+    batch_input = np.expand_dims(normalized_sequence, axis=0)
+
+    probs = _model.predict(batch_input, verbose=0)[0]
+    target_prob = float(probs[target_idx])
+
+    method = "softmax_fallback"
+    cosine_val: Optional[float] = None
+    score = max(0.0, min(100.0, 100.0 * target_prob))
+
+    if _embedding_model is not None and _prototype_matrix is not None:
+        h = _embedding_model.predict(batch_input, verbose=0)[0].astype(np.float64)
+        nrm = float(np.linalg.norm(h))
+        if nrm > 1e-8:
+            h = h / nrm
+        pvec = _prototype_matrix[target_idx].astype(np.float64)
+        cosine_val = float(np.clip(np.dot(h, pvec), -1.0, 1.0))
+        score = max(0.0, min(100.0, 50.0 * (cosine_val + 1.0)))
+        method = "embedding"
+
+    return {
+        "score": round(float(score), 2),
+        "cosine_similarity": None if cosine_val is None else round(cosine_val, 6),
+        "target_label": canonical,
+        "target_class_id": target_idx,
+        "method": method,
+        "target_class_probability": round(target_prob, 6),
+    }
+
+
 def get_model_info() -> Dict:
     """
     Get information about the loaded model.
@@ -321,7 +505,11 @@ def get_model_info() -> Dict:
         "output_shape": str(_model.output_shape),
         "num_classes": len(_class_labels),
         "classes": _class_labels,
-        "normalization_features": len(_normalization_params['mean'])
+        "normalization_features": len(_normalization_params['mean']),
+        "practice_score_method": "embedding"
+        if (_embedding_model is not None and _prototype_matrix is not None)
+        else "softmax_fallback",
+        "practice_prototype_source": _prototype_source,
     }
 
 

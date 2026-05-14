@@ -1,8 +1,8 @@
 import axios from 'axios';
-import { normalizeBaseURL } from './normalizeBaseUrl';
+import { getDefaultApiBaseURL, normalizeBaseURL } from './normalizeBaseUrl';
 
 // Get base URL from environment variable or use default
-const API_BASE_URL = normalizeBaseURL(import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000');
+const API_BASE_URL = normalizeBaseURL(import.meta.env.VITE_API_BASE_URL || getDefaultApiBaseURL());
 
 const LOCAL_ANIMATION_IDS = new Set([
   'alert', 'book', 'careful', 'cheap', 'crazy', 'dangerous', 'decent', 'dumb',

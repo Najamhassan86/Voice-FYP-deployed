@@ -5,7 +5,7 @@
  */
 
 import axios from 'axios';
-import { normalizeBaseURL } from './normalizeBaseUrl';
+import { getDefaultApiBaseURL, isLocalFrontend, normalizeBaseURL } from './normalizeBaseUrl';
 
 const createClient = (baseURL) => axios.create({
   baseURL,
@@ -15,16 +15,19 @@ const createClient = (baseURL) => axios.create({
   timeout: 30000, // 30 second timeout for model inference
 });
 
-const ENV_BASE_URL = normalizeBaseURL(import.meta.env.VITE_API_BASE_URL || '');
+const ENV_BASE_URL = normalizeBaseURL(import.meta.env.VITE_API_BASE_URL || getDefaultApiBaseURL());
+const LOCAL_BASE_URL_CANDIDATES = [
+  'http://localhost:8000',
+  'http://127.0.0.1:8000',
+  'http://localhost:8001',
+  'http://127.0.0.1:8001'
+];
 const BASE_URL_CANDIDATES = [
   ENV_BASE_URL,
-  'http://127.0.0.1:8001',
-  'http://localhost:8001',
-  'http://127.0.0.1:8000',
-  'http://localhost:8000'
+  ...(isLocalFrontend() ? LOCAL_BASE_URL_CANDIDATES : [])
 ].filter((url, index, arr) => url && arr.indexOf(url) === index);
 
-let activeBaseURL = ENV_BASE_URL || null;
+let activeBaseURL = ENV_BASE_URL;
 const clientCache = new Map();
 
 const getClient = (baseURL) => {
@@ -34,12 +37,7 @@ const getClient = (baseURL) => {
   return clientCache.get(baseURL);
 };
 
-const getOrderedBaseUrls = () => {
-  if (activeBaseURL) {
-    return [activeBaseURL, ...BASE_URL_CANDIDATES.filter((url) => url !== activeBaseURL)];
-  }
-  return BASE_URL_CANDIDATES;
-};
+const getOrderedBaseUrls = () => [activeBaseURL, ...BASE_URL_CANDIDATES.filter((url) => url !== activeBaseURL)];
 
 const requestWithAutoBase = async (method, path, data = null) => {
   const errors = [];
@@ -62,6 +60,7 @@ const requestWithAutoBase = async (method, path, data = null) => {
 
   throw new Error(`Could not reach PSL backend. Tried: ${errors.join(' | ')}`);
 };
+
 
 /**
  * Recognize PSL sign from a sequence of landmark features
@@ -115,6 +114,23 @@ export const recognizePSL = async (sequence, handsDetected = 0) => {
 
     throw new Error(errorMessage);
   }
+};
+
+/**
+ * Score a practice attempt against a single target sign (embedding vs prototype or softmax fallback).
+ *
+ * @param {number[][]} sequence - Array of 60 frames, each with 188 features
+ * @param {string} targetLabel - Word the user is practicing (must match backend class name)
+ * @param {number} handsDetected - Number of hands detected (1 or 2)
+ * @returns {Promise<{ score: number, cosine_similarity: number|null, target_label: string, target_class_id: number, method: string, target_class_probability: number }>}
+ */
+export const scorePracticePSL = async (sequence, targetLabel, handsDetected = 0) => {
+  const response = await requestWithAutoBase('post', '/api/psl/practice-score', {
+    sequence,
+    hands_detected: handsDetected,
+    target_label: targetLabel
+  });
+  return response;
 };
 
 /**
@@ -186,6 +202,7 @@ export const validateSequence = (sequence) => {
 
 export default {
   recognizePSL,
+  scorePracticePSL,
   getPSLModelInfo,
   checkPSLHealth,
   validateSequence,

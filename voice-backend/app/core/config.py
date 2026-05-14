@@ -16,10 +16,16 @@ class Settings(BaseSettings):
     # CORS Settings - Allow frontend to call this API
     CORS_ORIGINS: Annotated[List[str], NoDecode] = [
         "http://localhost:5173",  # Vite default dev server
+        "http://localhost:5174",  # Vite alt port (when 5173 is in use)
+        "http://localhost:5175",  # Vite alt port fallback
         "http://localhost:3000",  # Alternative dev port
+        "http://localhost:8080",  # Backend self-origin
         "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
         "http://127.0.0.1:3000",
+        "https://voice-fyp-deployed-lmkn3lnq0-i221332-1484s-projects.vercel.app",
     ]
+    CORS_ORIGIN_REGEX: str = r"https://.*\.vercel\.app"
 
     # Server Settings
     HOST: str = "0.0.0.0"
